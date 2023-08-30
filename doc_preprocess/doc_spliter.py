@@ -8,8 +8,9 @@ from langchain.document_loaders import PDFMinerPDFasHTMLLoader
 from langchain.docstore.document import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter,CharacterTextSplitter
 import statistics
+import time
 
-smr_client = boto3.client("sagemaker-runtime")
+#smr_client = boto3.client("sagemaker-runtime")
 parameters = {
   "max_length": 2048,
   "temperature": 0.01,
@@ -460,14 +461,17 @@ if __name__ == '__main__':
     chunk_size = args.chunk_size
     llm_endpoint = args.llm_endpoint
     idx = 1
-
+    start = time.time()
     f_name = "{}/{}".format(kg_dir, kg_name)
     out_f = open(f_name, 'w')
     snippet_arr = []
     for snippet_info in split_pdf(pdf_path):
         snippet_arr.append(snippet_info)
+        
+    end = time.time()
     all_info = json.dumps(snippet_arr, ensure_ascii=False)
     out_f.write(all_info)
     out_f.close()
-    print("finish separation of {}".format(pdf_path))
+    
+    print("finish separation of {}, cost:{}".format(pdf_path), end-start)
 
