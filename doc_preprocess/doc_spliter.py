@@ -473,5 +473,5 @@ if __name__ == '__main__':
     out_f.write(all_info)
     out_f.close()
     
-    print("finish separation of {}, cost:{}".format(pdf_path), end-start)
+    print("finish separation of {}, cost:{} (s)".format(pdf_path, end-start))
 
