@@ -1,0 +1,4 @@
+pypdf
+tqdm
+openai
+langchain 
