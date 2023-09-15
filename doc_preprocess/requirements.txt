@@ -1,4 +1,11 @@
 pypdf
 tqdm
 openai
-langchain 
+langchain
+llama-index
+gpt_index
+boto3
+bs4
+pdfminer.six
+pdf2image
+tqdm
