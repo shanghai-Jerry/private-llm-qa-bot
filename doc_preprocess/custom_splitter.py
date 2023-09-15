@@ -49,4 +49,4 @@ def split(content):
 if __name__ == '__main__':
 
     split_documents(
-        "/Users/youchaojiang/Downloads/guowangdata/pdf/output/txt/1-DLT 1586-2016 12kV固体绝缘金属封闭开关设备和控制设备-out.txt")
+        "~/Downloads/guowangdata/pdf/output/txt/1-DLT 1586-2016 12kV固体绝缘金属封闭开关设备和控制设备-out.txt")
