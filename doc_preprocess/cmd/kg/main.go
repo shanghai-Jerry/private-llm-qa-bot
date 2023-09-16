@@ -12,11 +12,15 @@ import (
 	"time"
 )
 
-func main() {
-	var dpPath, officeJsonPath, format, textMindJson, pdfPath, pdfDir, jsonDir, formatJson, formatJsonDir string
-	var outPage int
+var dpPath, officeJsonPath, format, textMindJson, pdfPath, pdfDir, jsonDir, formatJson, formatJsonDir string
+var filePath string
+var outPage int
+var pp_text_2_json bool
+
+func init() {
 	flag.StringVar(&format, "f", "doc", "input file format")
 	flag.StringVar(&dpPath, "dp_path", "", "input file path")
+	flag.StringVar(&filePath, "path", "", "input file path")
 	flag.StringVar(&officeJsonPath, "json", "", `json file path, like: ./office/23-page-6.json`)
 	flag.StringVar(&formatJson, "format_json", "", ``)
 	flag.StringVar(&formatJsonDir, "format_json_dir", "", ``)
@@ -25,9 +29,29 @@ func main() {
 	flag.StringVar(&pdfPath, "pdf_path", "", "input pdf file path， like：./b_data/pdf/23.pdf")
 	flag.StringVar(&pdfDir, "pdf_dir", "", "input pdf dir like：./b_data/pdf, 将其中的所有文件处理")
 	flag.IntVar(&outPage, "out_page", 1, "json out page num")
+	flag.BoolVar(&pp_text_2_json, "pp_text2Json", false, "pp text2Json")
 	flag.Parse()
+}
+
+func ppstructure() {
+	if pp_text_2_json {
+		pp_text2Json(filePath)
+	}
+}
+
+func main() {
 
 	start := time.Now()
+
+	ppstructure()
+
+	office_json_handler()
+
+	fmt.Printf("total costs:%v(s) \n", time.Since(start).Seconds())
+	fmt.Println("++++++++++++++++++++++++++++++++++++++++++++++++")
+}
+
+func office_json_handler() {
 	// 1 ################################################################
 	// load_data()
 	if len(formatJson) > 0 {
@@ -220,6 +244,4 @@ func main() {
 		fmt.Println("paras:", len(d2pResp.Paras))
 
 	}
-	fmt.Printf("total costs:%v(s) \n", time.Since(start).Seconds())
-	fmt.Println("++++++++++++++++++++++++++++++++++++++++++++++++")
 }
