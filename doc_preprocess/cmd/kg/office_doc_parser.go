@@ -192,6 +192,11 @@ const (
 	layout_doc_title    = "doc_title"
 	layout_text_title   = "text_title"
 	// textmind's layout types with different define
+
+	// equation
+	layout_equation       = "equation"
+	layout_header         = "header"
+	layout_figure_caption = "figure_caption"
 )
 
 func buildTable(data []TableBody) [][]string {
