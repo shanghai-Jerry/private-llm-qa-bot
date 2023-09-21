@@ -10,3 +10,4 @@ pdfminer.six
 pdf2image
 tqdm
 paddleocr>=2.6.0.3
+unstructured[all-docs]

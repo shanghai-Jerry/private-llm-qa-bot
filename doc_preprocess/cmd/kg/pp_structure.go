@@ -8,6 +8,8 @@ import (
 	"os"
 	"sort"
 	"strings"
+
+	"golang.org/x/net/html"
 )
 
 type OResultJson struct {
@@ -20,10 +22,71 @@ type OResult struct {
 	Res  []Res  `json:"res"`
 }
 
+type OTResult struct {
+	Type    string `json:"type"`
+	BBox    []int  `json:"bbox"`
+	Res     TRes   `json:"res"`
+	ImagIDX int    `json:"img_idx"`
+}
+
+type TRes struct {
+	CellBbox [][]float32 `json:"cell_bbox"`
+	HTML     string      `json:"html"`
+}
+
 type Res struct {
 	Text       string      `json:"text"`
 	Confidence float32     `json:"confidence"`
 	TextRegion [][]float32 `json:"text_region"`
+}
+
+func findTable(n *html.Node) *html.Node {
+	if n.Type == html.ElementNode && n.Data == "table" {
+		return n
+	}
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		if table := findTable(c); table != nil {
+			return table
+		}
+	}
+	return nil
+}
+
+func extractTableData(table *html.Node) [][]string {
+	var data [][]string
+	for row := table.FirstChild; row != nil; row = row.NextSibling {
+		var rowData []string
+		for cell := row.FirstChild; cell != nil; cell = cell.NextSibling {
+			if cell.Type == html.ElementNode && cell.Data == "td" {
+				rowData = append(rowData, getText(cell))
+			}
+		}
+		data = append(data, rowData)
+	}
+	return data
+}
+
+func getText(n *html.Node) string {
+	var text string
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		if c.Type == html.TextNode {
+			text += c.Data
+		}
+	}
+	return text
+}
+
+func parseHTMLTable(htmlString string) [][]string {
+	doc, _ := html.Parse(strings.NewReader(htmlString))
+	fmt.Printf("htmlString:%v \n", htmlString)
+	table := findTable(doc)
+	if table != nil {
+		fmt.Printf("table find:%v \n", true)
+		data := extractTableData(table)
+		fmt.Printf("table data:%v \n", data)
+		return data
+	}
+	return [][]string{}
 }
 
 func compareBBox(bbox1, bbox2 []int) bool {
@@ -54,7 +117,7 @@ func getMinRightX(results []OResult) int {
 	return maxX
 }
 
-func pp_text2Json(filePath string) {
+func pp_text2Json(f3 *os.File, filePath string) {
 	fmt.Printf("pp_text2Json ..., file: %v\n", filePath)
 	f, _ := os.Open(filePath)
 	// 创建一个 Scanner 对象
@@ -67,6 +130,15 @@ func pp_text2Json(filePath string) {
 		line := scanner.Text()
 		var result OResult
 		_ = json.Unmarshal([]byte(line), &result)
+		dtype := result.Type
+		if dtype == layout_table {
+			// 判断是否为 table， 就table的格式转换一下
+			var tresult OTResult
+			_ = json.Unmarshal([]byte(line), &tresult)
+			result.Res = append(result.Res, Res{
+				Text: tresult.Res.HTML,
+			})
+		}
 		types = append(types, result.Type)
 		jsonResult.Results = append(jsonResult.Results, result)
 	}
@@ -103,11 +175,26 @@ func pp_text2Json(filePath string) {
 	outPath := fmt.Sprintf("%v.json", filePath)
 	f2, _ := os.Create(outPath)
 	var outString []string
-	f3, _ := os.Create(fmt.Sprintf("%v.recover.txt", filePath))
 	fmt.Printf("types:%v\n", types)
 	for _, r := range jsonResult.Results {
 		if r.Type == layout_figure || r.Type == layout_equation {
-			outString = append(outString, fmt.Sprintf("[custome_data]:%v", r.Type))
+			if r.Type == layout_figure {
+				var tmp []string
+				for _, res := range r.Res {
+					tmp = append(tmp, res.Text)
+				}
+				outString = append(outString, fmt.Sprintf("[%v] start == ", r.Type))
+				outString = append(outString, strings.Join(tmp, ""))
+			}
+			outString = append(outString, fmt.Sprintf("[%v] end == ", r.Type))
+			continue
+		}
+		if r.Type == layout_table {
+			for _, res := range r.Res {
+				tables := parseHTMLTable(res.Text)
+				fmt.Printf("tables:%v \n", tables)
+				writeTable(f3, tables)
+			}
 			continue
 		}
 		var tmp []string
