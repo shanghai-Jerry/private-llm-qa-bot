@@ -21,15 +21,6 @@ const (
 	contents = "contents"
 )
 
-type OutputJson struct {
-	Tokens  int    `json:"tokens"`
-	Content string `json:"content"`
-	// table, text, title
-	Type string `json:"type"`
-	// 第几页
-	Pages int `json:"page"`
-}
-
 type OfficeJSONData struct {
 	// 将多页内容合并到一个json文件中
 	// 合并内容: results, layouts, tables_result
@@ -54,6 +45,68 @@ type OfficeJSONData struct {
 	TablesResult []TablesResult `json:"tables_result"`
 }
 
+func getItemInArray(arr []int, cmp func(item, tmp int) bool) int {
+	if len(arr) == 0 {
+		return -1
+	}
+	t := arr[0]
+	for _, a := range arr {
+		if cmp(a, t) {
+			t = a
+		}
+	}
+	return t
+}
+
+func getSectionMaxLeftPositon(sections []Sections) int {
+	var leftMaxPosition int
+	for _, section := range sections {
+		attr := section.Attribute
+		if attr == "section" {
+			x := section.AttriLocation.Points[0].X
+			if x > leftMaxPosition {
+				leftMaxPosition = x
+			}
+		}
+	}
+	return leftMaxPosition
+}
+
+// return LeftMaxPosition
+func sectionsAnalyzer(f *os.File, sections []Sections) int {
+	var leftMaxPosition int
+	var paraIndexMax, paraIndexMin int
+	var idxMax, idxMin int
+	var paras []int
+	var idxs []int
+	for _, section := range sections {
+		attr := section.Attribute
+		if attr == "section" {
+			paras = append(paras, section.SecIdx.ParaIdx...)
+			idxs = append(idxs, section.SecIdx.Idx...)
+			x := section.AttriLocation.Points[0].X
+			if x > leftMaxPosition {
+				leftMaxPosition = x
+			}
+		}
+	}
+	minCmp := func(item int, tmp int) bool {
+		return item < tmp
+	}
+	maxCmp := func(item int, tmp int) bool {
+		return item > tmp
+	}
+	paraIndexMin = getItemInArray(paras, minCmp)
+	paraIndexMax = getItemInArray(paras, maxCmp)
+	idxMin = getItemInArray(idxs, minCmp)
+	idxMax = getItemInArray(idxs, maxCmp)
+
+	writeFileLine(f, fmt.Sprintf("==== para len:%v, min:%v,max:%v", len(paras), paraIndexMin, paraIndexMax))
+	writeFileLine(f, fmt.Sprintf("==== idx len:%v, min:%v,max:%v", len(idxs), idxMin, idxMax))
+	return leftMaxPosition
+}
+
+// 往结果json中添加一些metadata信息
 func addExtraMetaToOfficeJson(json *OfficeJSONData, pageNo int, startOffset, offset int) {
 	for _, result := range json.Results {
 		result.PageNo = pageNo
@@ -65,6 +118,7 @@ func addExtraMetaToOfficeJson(json *OfficeJSONData, pageNo int, startOffset, off
 	}
 }
 
+// 合并多页的json返回数据
 func MergeOfficeRetJson(retJson *OfficeJSONData, pageRetJsons []*OfficeJSONData) {
 
 	addExtraMetaToOfficeJson(retJson, 1, 0, 0)
@@ -197,6 +251,11 @@ const (
 	layout_equation       = "equation"
 	layout_header         = "header"
 	layout_figure_caption = "figure_caption"
+
+	// section
+	section_header  = "header"
+	section_number  = "number"
+	section_section = "section"
 )
 
 func buildTable(data []TableBody) [][]string {
@@ -411,7 +470,7 @@ func officeDataParseLayout(f *os.File, logF *os.File, retJson []byte) {
 	}
 }
 
-func officeDataParseLayoutV2(f *os.File, retJson []byte) {
+func officeDataParseLayoutJsonFromat(f *os.File, retJson []byte) {
 	if len(retJson) == 0 {
 		return
 	}
@@ -570,6 +629,9 @@ func addOutputJson(o []*OutputJson, json *OutputJson) []*OutputJson {
 	}
 	return o
 }
+func officePDFParserV2(pdfPath string, outDir string) {
+	// TODO
+}
 
 func officePDFParser(pdfPath string, outDir string) {
 	fmt.Printf("start parsing... %v\n", pdfPath)
@@ -620,5 +682,5 @@ func officePDFParser(pdfPath string, outDir string) {
 	fmt.Printf("========= output total file txt  ========== \n")
 	officeDataParseLayout(f2, f4, totalRetJosnBytes)
 	fmt.Printf("========= output total file foramt json  ========== \n")
-	officeDataParseLayoutV2(f3, totalRetJosnBytes)
+	officeDataParseLayoutJsonFromat(f3, totalRetJosnBytes)
 }

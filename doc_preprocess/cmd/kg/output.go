@@ -8,6 +8,21 @@ import (
 	"unicode/utf8"
 )
 
+// 文档解析输出格式
+type OutputJsonFormat struct {
+	DocTitles  []string      `json:"doc_title"`
+	OutputJson []*OutputJson `json:"output_json"`
+}
+
+type OutputJson struct {
+	Tokens  int    `json:"tokens"`
+	Content string `json:"content"`
+	// table, text, title, content
+	Type string `json:"type"`
+	// 第几页
+	Pages int `json:"page"`
+}
+
 // 分段输出 格式
 type ParaJson struct {
 	DocTitle string   `json:"doc_title"`
@@ -18,12 +33,6 @@ type ParaJson struct {
 	Tokens int64  `json:"tokens"`
 	// 内容所属的页信息
 	Pages []int `json:"pages"`
-}
-
-// 文档解析输出格式
-type OutputJsonFormat struct {
-	DocTitles  []string      `json:"doc_title"`
-	OutputJson []*OutputJson `json:"output_json"`
 }
 
 func get_paras_from_format_json(path string, outdir string) {
