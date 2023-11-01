@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 	"regexp"
 	"strings"
@@ -251,6 +252,8 @@ const (
 	layout_equation       = "equation"
 	layout_header         = "header"
 	layout_figure_caption = "figure_caption"
+	layout_reference      = "reference"
+	layout_footer         = "footer"
 
 	// section
 	section_header  = "header"
@@ -402,8 +405,12 @@ func officeDataParseLayout(f *os.File, logF *os.File, retJson []byte) {
 	var outString []string
 	lastIndex := -1
 	results := resp.Results
+	layoutTypeM := make(map[string]struct{})
 	for _, lout := range resp.Layouts {
 		layout := lout.Layout
+		if _, ok := layoutTypeM[layout]; !ok {
+			layoutTypeM[layout] = struct{}{}
+		}
 		layoutIndexs := lout.LayoutIdx
 		if len(layoutIndexs) == 0 {
 			writeFileLine(logF, fmt.Sprintf("layoutIndexs is empty，page: %v", lout.PageNo))
@@ -468,6 +475,12 @@ func officeDataParseLayout(f *os.File, logF *os.File, retJson []byte) {
 	if len(outString) > 0 {
 		writeFile(f, outString)
 	}
+
+	var retString []string
+	for k, _ := range layoutTypeM {
+		retString = append(retString, k)
+	}
+	writeFileLine(logF, fmt.Sprintf("got layouts: %v ", strings.Join(retString, ", ")))
 }
 
 func officeDataParseLayoutJsonFromat(f *os.File, retJson []byte) {
@@ -629,8 +642,112 @@ func addOutputJson(o []*OutputJson, json *OutputJson) []*OutputJson {
 	}
 	return o
 }
-func officePDFParserV2(pdfPath string, outDir string) {
-	// TODO
+func officePDFParserV2(totalTxtF *os.File, finalOutJsonFormat *OutputJsonFormat, pdfPath string, outDir string) {
+	fmt.Printf("start parsing... %v\n", pdfPath)
+	pdfFile := GetFileContentAsBase64(pdfPath)
+	index := strings.LastIndex(pdfPath, "/")
+	// 23.pdf
+	inputFile := pdfPath[index+1:]
+	index = strings.LastIndex(inputFile, ".")
+	// 23
+	inputFileName := strings.ReplaceAll(inputFile[:index], " ", "_")
+	fmt.Printf("fileName:%v\n", inputFileName)
+	// 输出目录
+	outputDir := outDir
+	os.Mkdir(outputDir, fs.ModePerm)
+	if outPage > 1 {
+		outputFileNameTxt := fmt.Sprintf("%v-page-%v-out.txt", inputFileName, outPage)
+		outJsonF, _ := os.Create(outputDir + "/" + fmt.Sprintf("%v-page-%v.json", inputFileName, outPage))
+		outTxtF, _ := os.Create(outputDir + "/" + outputFileNameTxt)
+		f1, _ := os.Create(getOutFilePathFunc(outputDir,
+			fmt.Sprintf("%v-page-%v.log", inputFileName, outPage)))
+
+		fmt.Printf("--- output json of page %d ---- \n", outPage)
+		pageJson, _ := parsePDF(pdfFile, pdfPath, outPage)
+
+		var pageResp OfficeJSONData
+		_ = json.Unmarshal(pageJson, &pageResp)
+		sectionsAnalyzer(f1, pageResp.Sections)
+
+		writeFileBytes(outJsonF, pageJson)
+		officeDataParseLayout(outTxtF, f1, pageJson)
+		return
+	}
+
+	firstOutJsonF, _ := os.Create(getOutFilePathFunc(outputDir,
+		fmt.Sprintf("%v-page-%v.json", inputFileName, 1)))
+	outputFileTotalF, _ := os.Create(getOutFilePathFunc(outputDir,
+		fmt.Sprintf("%v-total.json", inputFileName)))
+
+	f3, _ := os.Create(getOutFilePathFunc(outputDir, fmt.Sprintf("/%v.log", inputFileName)))
+	var retResps []*OfficeJSONData
+
+	fmt.Printf("========= parsing page %d ========== \n", 1)
+	firstPageRetJson, err := parsePDF(pdfFile, pdfPath, 1)
+	if err != nil {
+		fmt.Printf("parsePDF err:%v", err.Error())
+		return
+	}
+	// 输出第一页解析josn
+	writeFileBytes(firstOutJsonF, firstPageRetJson)
+
+	startParse := time.Now()
+	if finalOutJsonFormat == nil {
+		finalOutJsonFormat = &OutputJsonFormat{}
+	}
+	var resp OfficeJSONData
+	_ = json.Unmarshal(firstPageRetJson, &resp)
+
+	f6, _ := os.Create(getOutFilePathFunc(outputDir, fmt.Sprintf("%v-out-page-%v-section.txt", inputFileName, 1)))
+
+	sectionPageParser := &OfficePageParserBySection{
+		// OutputTextTotalF:          f4,
+		DocOutputTextTotalF:       totalTxtF,
+		OutputTxtF:                f6,
+		Resp:                      &resp,
+		IngnoreHeaderAfterPageOne: false,
+		CombineF:                  CombinOutJsonFormatF,
+	}
+
+	sectionPageParser.officeDataParseLayoutJsonFromatBySection()
+	sectionPageParser.CombineF(finalOutJsonFormat, sectionPageParser.OutputJsonFormat)
+
+	sectionsAnalyzer(f3, resp.Sections)
+	totalPage := resp.PDFFileSize
+	for page := 2; page <= totalPage; page++ {
+		fmt.Printf("========= parsing page %d ========== \n", page)
+		retJson, err := parsePDF(pdfFile, pdfPath, page)
+		if err != nil {
+			return
+		}
+		outJsonFPage, _ := os.Create(outputDir + "/" + fmt.Sprintf("%v-page-%v.json", inputFileName, page))
+		f6, _ = os.Create(getOutFilePathFunc(outputDir, fmt.Sprintf("%v-out-page-%v-section.txt", inputFileName, page)))
+		// 输出每一页解析josn
+		writeFileBytes(outJsonFPage, retJson)
+
+		var pageResp OfficeJSONData
+		_ = json.Unmarshal(retJson, &pageResp)
+		sectionsAnalyzer(f3, pageResp.Sections)
+
+		sectionParserPage := &OfficePageParserBySection{
+			DocOutputTextTotalF: totalTxtF,
+			// OutputTextTotalF:          f4,
+			OutputTxtF:                f6,
+			Resp:                      &pageResp,
+			IngnoreHeaderAfterPageOne: true,
+			CombineF:                  CombinOutJsonFormatF,
+		}
+
+		sectionParserPage.officeDataParseLayoutJsonFromatBySection()
+		sectionParserPage.CombineF(finalOutJsonFormat, sectionParserPage.OutputJsonFormat)
+
+		retResps = append(retResps, &pageResp)
+	}
+	fmt.Printf("parsing costs:%v(s) \n", time.Since(startParse).Seconds())
+
+	MergeOfficeRetJson(&resp, retResps)
+	totalRetJosnBytes, _ := json.Marshal(&resp)
+	writeFileBytes(outputFileTotalF, totalRetJosnBytes)
 }
 
 func officePDFParser(pdfPath string, outDir string) {
@@ -654,7 +771,7 @@ func officePDFParser(pdfPath string, outDir string) {
 	var retResps []*OfficeJSONData
 
 	fmt.Printf("========= parsing page %d ========== \n", 1)
-	firstPageRetJson, err := parsePDF(pdfFile, 1)
+	firstPageRetJson, err := parsePDF(pdfFile, pdfPath, 1)
 	if err != nil {
 		fmt.Printf("parsePDF err:%v", err.Error())
 		return
@@ -666,7 +783,7 @@ func officePDFParser(pdfPath string, outDir string) {
 	totalPage := resp.PDFFileSize
 	for page := 2; page <= totalPage; page++ {
 		fmt.Printf("========= parsing page %d ========== \n", page)
-		retJson, err := parsePDF(pdfFile, page)
+		retJson, err := parsePDF(pdfFile, pdfPath, page)
 		if err != nil {
 			return
 		}

@@ -11,7 +11,10 @@ import (
 
 // 按照一页处理
 type OfficePageParserBySection struct {
-	OutputJsonF               *os.File
+	// pdf 全部 txt
+	DocOutputTextTotalF *os.File
+	// page total
+	OutputTextTotalF          *os.File
 	OutputTxtF                *os.File
 	LogF                      *os.File
 	IngnoreHeaderAfterPageOne bool
@@ -26,25 +29,45 @@ type OfficePageParserBySection struct {
 	CombineF         func(*OutputJsonFormat, *OutputJsonFormat)
 }
 
+func CombinOutJsonFormatF(final *OutputJsonFormat, pageOut *OutputJsonFormat) {
+	// 只保留第一页已识别有文本标题的标题内容
+	if len(final.DocTitles) == 0 {
+		final.DocTitles = append(final.DocTitles, pageOut.DocTitles...)
+	}
+	final.OutputJson = append(final.OutputJson, pageOut.OutputJson...)
+}
+
 func NewOfficePageParserBySection(resp *OfficeJSONData) *OfficePageParserBySection {
 	return &OfficePageParserBySection{
-		CombineF: func(final *OutputJsonFormat, pageOut *OutputJsonFormat) {
-			final.DocTitles = append(final.DocTitles, pageOut.DocTitles...)
-			final.OutputJson = append(final.OutputJson, pageOut.OutputJson...)
-		},
+		CombineF: CombinOutJsonFormatF,
 	}
 }
 
-func (p *OfficePageParserBySection) officeDataParseLayoutJsonFromatBySection() {
+func (p *OfficePageParserBySection) SetCombineFinalFunc(f func(*OutputJsonFormat, *OutputJsonFormat)) {
+	p.CombineF = f
+}
 
+func (p *OfficePageParserBySection) officeDataParseLayoutJsonFromatBySection() {
+	totalF := p.OutputTextTotalF
 	f := p.OutputTxtF
+	docOutF := p.DocOutputTextTotalF
 	ignoreHeader := p.IngnoreHeaderAfterPageOne
 	resp := p.Resp
 
 	sections := resp.Sections
 
-	//TODO: 过滤出所有的header 中idx，全局按top位置排序输出
-
+	// 过滤出所有的header 中idx，全局按top位置排序输出
+	var headerSections []Sections
+	// var numberSections []Sections
+	for _, section := range sections {
+		attr := section.Attribute
+		switch attr {
+		case section_header:
+			headerSections = append(headerSections, section)
+		case section_number:
+			// p.get_output_json_by_section_number(section)
+		}
+	}
 	for _, section := range sections {
 		attr := section.Attribute
 		switch attr {
@@ -53,7 +76,7 @@ func (p *OfficePageParserBySection) officeDataParseLayoutJsonFromatBySection() {
 				p.get_output_json_by_section_header(section)
 			}
 		case section_number:
-			p.get_output_json_by_section_number(section)
+			// p.get_output_json_by_section_number(section)
 			// 所有该section下的para_idx, 应该包含了所有layout中的数据
 		case section_section:
 			p.get_output_json_by_section_section(section)
@@ -64,9 +87,20 @@ func (p *OfficePageParserBySection) officeDataParseLayoutJsonFromatBySection() {
 	docTitles := p.DocTitles
 	for _, o := range outPutJsons {
 		o.Tokens = CountTokens(o.Content)
+		endWith := endsWithPunctuation(o.Content)
+		outContent := o.Content
+		if endWith {
+			outContent = o.Content + "\n"
+		}
 		// write txt
 		if f != nil {
-			writeFileBytes(f, []byte(o.Content+"\n"))
+			writeFileBytes(f, []byte(outContent))
+		}
+		if totalF != nil {
+			writeFileBytes(totalF, []byte(outContent))
+		}
+		if docOutF != nil {
+			writeFileBytes(docOutF, []byte(outContent))
 		}
 	}
 	formatOutJson := &OutputJsonFormat{
@@ -139,7 +173,7 @@ func (p *OfficePageParserBySection) get_output_json_by_section_section(section S
 	sort.Slice(parasIdx, func(i, j int) bool {
 		vi := parasIdx[i]
 		vj := parasIdx[j]
-		return layouts[vi].LayoutLocation[0].Y < layouts[vj].LayoutLocation[0].Y
+		return layouts[vi].LayoutLocation[0].Y <= layouts[vj].LayoutLocation[0].Y
 	})
 	fmt.Printf("sorted parasIdx: %v \n", parasIdx)
 	for _, pidx := range parasIdx {
@@ -155,16 +189,35 @@ func (p *OfficePageParserBySection) get_output_json_by_section_section(section S
 				outputJson := &OutputJson{
 					Type:    layout_figure,
 					Pages:   pageNo,
-					Content: fmt.Sprintf("[image: %v]", imageIdStr),
+					Content: fmt.Sprintf("[image: %v] == start ", imageIdStr),
 				}
 				outPutJsons = addOutputJson(outPutJsons, outputJson)
+				// 识别出来的图片内容，拿出来看看
+				// for _, lidx := range lout.LayoutIdx {
+				// 	ridx := lidx
+				// 	result := results[ridx]
+				// 	text := result.Words.Word
+				// 	pageNo = result.PageNo
+				// 	outputJson := &OutputJson{
+				// 		Type:    layout_text,
+				// 		Pages:   pageNo,
+				// 		Content: text,
+				// 	}
+				// 	outPutJsons = addOutputJson(outPutJsons, outputJson)
+				// }
+				// outputJsonEnd := &OutputJson{
+				// 	Type:    layout_figure,
+				// 	Pages:   pageNo,
+				// 	Content: fmt.Sprintf("[image: %v] == end ", imageIdStr),
+				// }
+				// outPutJsons = addOutputJson(outPutJsons, outputJsonEnd)
 			// 表格
 			case layout_table:
 				table := buildTable(resp.TablesResult[p.TableIndex].Body)
 				outputJson := &OutputJson{
 					Type:    layout_table,
 					Pages:   pageNo,
-					Content: writeTableStringBuffer(table),
+					Content: "\n" + writeTableStringBuffer(table) + "\n",
 				}
 				outPutJsons = addOutputJson(outPutJsons, outputJson)
 				p.TableIndex++
@@ -199,7 +252,7 @@ func (p *OfficePageParserBySection) get_output_json_by_section_section(section S
 				outputJson := &OutputJson{
 					Type:    layout_table_title,
 					Pages:   pageNo,
-					Content: text,
+					Content: "\n" + text + "\n",
 				}
 				outPutJsons = addOutputJson(outPutJsons, outputJson)
 
@@ -216,7 +269,7 @@ func (p *OfficePageParserBySection) get_output_json_by_section_section(section S
 				outputJson := &OutputJson{
 					Type:    layout_figure_title,
 					Pages:   pageNo,
-					Content: text,
+					Content: "\n" + text + "\n",
 				}
 				outPutJsons = addOutputJson(outPutJsons, outputJson)
 				// 文档标题
@@ -228,7 +281,7 @@ func (p *OfficePageParserBySection) get_output_json_by_section_section(section S
 				outputJson := &OutputJson{
 					Type:    layout_title,
 					Pages:   pageNo,
-					Content: text,
+					Content: "\n##" + text + "## \n",
 				}
 				outPutJsons = addOutputJson(outPutJsons, outputJson)
 			}

@@ -14,11 +14,19 @@ import (
 var OCR_API_KEY = ""
 var OCR_SECRET_KEY = ""
 
-func parsePDF(pdfFile string, fileNum int) (body []byte, err error) {
+func parsePDF(pdfFile string, pdfPath string, fileNum int) (body []byte, err error) {
 	urlPath := "https://aip.baidubce.com/rest/2.0/ocr/v1/doc_analysis_office?access_token=" + GetAccessToken()
 	// pdf_file 可以通过 GetFileContentAsBase64("C:\fakepath\23.pdf") 方法获取
 	data := url.Values{}
-	data.Set("pdf_file", pdfFile)
+	if strings.HasSuffix(pdfPath, "jpg") || strings.HasSuffix(pdfPath, "jpeg") || strings.HasSuffix(pdfPath, "png") || strings.HasSuffix(pdfPath, "bmp") {
+		data.Set("image", pdfFile)
+	} else if strings.HasSuffix(pdfPath, "pdf") {
+		data.Set("pdf_file", pdfFile)
+	} else if strings.HasPrefix(pdfPath, "http") {
+		data.Set("url", pdfFile)
+	} else {
+		panic("文档文件不合法")
+	}
 	data.Set("pdf_file_num", fmt.Sprintf("%v", fileNum))
 	data.Set("layout_analysis", "true")
 	data.Set("recg_tables", "true")

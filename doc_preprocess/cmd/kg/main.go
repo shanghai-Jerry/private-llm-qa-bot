@@ -8,6 +8,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -27,10 +29,10 @@ func init() {
 	flag.StringVar(&jsonDir, "json_dir", "", `json file path, like: ./office/`)
 	flag.StringVar(&textMindJson, "tjson", "", `textming json file path, like: ./textmind/23.textmind.json`)
 	flag.StringVar(&pdfPath, "pdf_path", "", "input pdf file path， like：./b_data/pdf/23.pdf")
-	flag.StringVar(&pdfDir, "pdf_dir", "", "input pdf dir like：./b_data/pdf, 将其中的所有文件处理")
+	flag.StringVar(&pdfDir, "pdf_dir", "", "最好是按页拆分之后，每页的图片文件")
 	flag.StringVar(&dir, "dir", "", "input  dir")
 	flag.IntVar(&outPage, "out_page", 1, "json out page num")
-	flag.BoolVar(&pp_text_2_json, "pp_text2Json", false, "pp text2Json")
+	flag.BoolVar(&pp_text_2_json, "pp_text2Json", true, "pp text2Json")
 	flag.Parse()
 }
 
@@ -50,117 +52,22 @@ func office_json_handler() {
 
 	// 4 ################################################################
 	if len(pdfPath) > 0 {
-		fmt.Printf("start parsing... %v\n", pdfPath)
 		index := strings.LastIndex(pdfPath, "/")
-		pdfFile := GetFileContentAsBase64(pdfPath)
 		// 23.pdf
 		inputFile := pdfPath[index+1:]
 		index = strings.LastIndex(inputFile, ".")
 		// 23
 		inputFileName := strings.ReplaceAll(inputFile[:index], " ", "_")
-		fmt.Printf("fileName:%v\n", inputFileName)
-		// 输出目录
 		outputDir := "../../office/" + inputFileName
-		os.Mkdir(outputDir, fs.ModePerm)
-		if outPage > 1 {
-			outputFileNameTxt := fmt.Sprintf("%v-page-%v-out.txt", inputFileName, outPage)
-			outJsonF, _ := os.Create(outputDir + "/" + fmt.Sprintf("%v-page-%v.json", inputFileName, outPage))
-			outTxtF, _ := os.Create(outputDir + "/" + outputFileNameTxt)
-			f1, _ := os.Create(getOutFilePathFunc(outputDir,
-				fmt.Sprintf("%v-page-%v.log", inputFileName, outPage)))
-
-			fmt.Printf("--- output json of page %d ---- \n", outPage)
-			pageJson, _ := parsePDF(pdfFile, outPage)
-
-			var pageResp OfficeJSONData
-			_ = json.Unmarshal(pageJson, &pageResp)
-			sectionsAnalyzer(f1, pageResp.Sections)
-
-			writeFileBytes(outJsonF, pageJson)
-			officeDataParseLayout(outTxtF, f1, pageJson)
-			return
-		}
-
-		firstOutJsonF, _ := os.Create(getOutFilePathFunc(outputDir,
-			fmt.Sprintf("%v-page-%v.json", inputFileName, 1)))
-		outputFileTotalF, _ := os.Create(getOutFilePathFunc(outputDir,
-			fmt.Sprintf("%v-total.json", inputFileName)))
-
-		f, _ := os.Create(getOutFilePathFunc(outputDir, fmt.Sprintf("%v-out.txt", inputFileName)))
-		f2, _ := os.Create(getOutFilePathFunc(outputDir, fmt.Sprintf("%v-out.json", inputFileName)))
-		f3, _ := os.Create(getOutFilePathFunc(outputDir, fmt.Sprintf("/%v.log", inputFileName)))
 		f4, _ := os.Create(getOutFilePathFunc(outputDir, fmt.Sprintf("%v-out-section.txt", inputFileName)))
 		f5, _ := os.Create(getOutFilePathFunc(outputDir, fmt.Sprintf("%v-out-section.json", inputFileName)))
-		var retResps []*OfficeJSONData
-
-		fmt.Printf("========= parsing page %d ========== \n", 1)
-		firstPageRetJson, err := parsePDF(pdfFile, 1)
-		if err != nil {
-			fmt.Printf("parsePDF err:%v", err.Error())
-			return
-		}
-		// 输出第一页解析josn
-		writeFileBytes(firstOutJsonF, firstPageRetJson)
-
-		startParse := time.Now()
 		finalOutJsonFormat := &OutputJsonFormat{}
-		combinOutJsonFormatF := func(final *OutputJsonFormat, pageOut *OutputJsonFormat) {
-			final.DocTitles = append(final.DocTitles, pageOut.DocTitles...)
-			final.OutputJson = append(final.OutputJson, pageOut.OutputJson...)
-		}
-		var resp OfficeJSONData
-		_ = json.Unmarshal(firstPageRetJson, &resp)
-
-		sectionPageParser := &OfficePageParserBySection{
-			OutputTxtF:                f4,
-			Resp:                      &resp,
-			IngnoreHeaderAfterPageOne: false,
-		}
-
-		sectionPageParser.officeDataParseLayoutJsonFromatBySection()
-		combinOutJsonFormatF(finalOutJsonFormat, sectionPageParser.OutputJsonFormat)
-
-		sectionsAnalyzer(f3, resp.Sections)
-		totalPage := resp.PDFFileSize
-		for page := 2; page <= totalPage; page++ {
-			fmt.Printf("========= parsing page %d ========== \n", page)
-			retJson, err := parsePDF(pdfFile, page)
-			if err != nil {
-				return
-			}
-			outJsonFPage, _ := os.Create(outputDir + "/" + fmt.Sprintf("%v-page-%v.json", inputFileName, page))
-			// 输出每一页解析josn
-			writeFileBytes(outJsonFPage, retJson)
-
-			var pageResp OfficeJSONData
-			_ = json.Unmarshal(retJson, &pageResp)
-			sectionsAnalyzer(f3, pageResp.Sections)
-
-			sectionParser := &OfficePageParserBySection{
-				OutputTxtF:                f4,
-				Resp:                      &pageResp,
-				IngnoreHeaderAfterPageOne: true,
-			}
-
-			sectionParser.officeDataParseLayoutJsonFromatBySection()
-			combinOutJsonFormatF(finalOutJsonFormat, sectionPageParser.OutputJsonFormat)
-
-			retResps = append(retResps, &pageResp)
-		}
-		// section out
+		officePDFParserV2(f4, finalOutJsonFormat, pdfPath, outputDir)
 		finalOutJsonFormatBytes, _ := json.Marshal(finalOutJsonFormat)
 		writeFileBytes(f5, finalOutJsonFormatBytes)
 
-		fmt.Printf("parsing costs:%v(s) \n", time.Since(startParse).Seconds())
+		fmt.Printf("finished file:%v", inputFileName)
 
-		MergeOfficeRetJson(&resp, retResps)
-		totalRetJosnBytes, _ := json.Marshal(&resp)
-		fmt.Printf("--- output total file json --- \n")
-		writeFileBytes(outputFileTotalF, totalRetJosnBytes)
-		fmt.Printf("--- output total file txt  --- \n")
-		officeDataParseLayout(f, f3, totalRetJosnBytes)
-		fmt.Printf("--- output total file foramt json --- \n")
-		officeDataParseLayoutJsonFromat(f2, totalRetJosnBytes)
 	}
 	// 1 ################################################################
 	// load_data()
@@ -239,6 +146,9 @@ func office_json_handler() {
 		// 输出目录
 		outputDir := fmt.Sprintf("%v/output", pdfDir)
 		os.Mkdir(outputDir, fs.ModePerm)
+		sectionTextTotalF, _ := os.Create(getOutFilePathFunc(outputDir, "total-out-section.txt"))
+		sectionJsonTotalF, _ := os.Create(getOutFilePathFunc(outputDir, "total-out-section.json"))
+		var paths []string
 		visitFunc := func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				fmt.Printf("Error accessing path %q: %v\n", path, err)
@@ -250,8 +160,7 @@ func office_json_handler() {
 				if strings.HasPrefix(path, outputDir) {
 					return nil
 				}
-				fmt.Printf(" ###### Processing File: %s\n", path)
-				officePDFParser(path, outputDir)
+				paths = append(paths, path)
 			}
 			return nil
 		}
@@ -259,6 +168,17 @@ func office_json_handler() {
 		if err != nil {
 			fmt.Printf("Error walk:%v", err)
 		}
+
+		sort.Slice(paths, func(i, j int) bool {
+			return getInputFilePageIndex(paths[i]) < getInputFilePageIndex(paths[j])
+		})
+		finalOutJsonFormat := &OutputJsonFormat{}
+
+		for _, path := range paths {
+			officePDFParserV2(sectionTextTotalF, finalOutJsonFormat, path, outputDir)
+		}
+		finalOutJsonFormatBytes, _ := json.Marshal(finalOutJsonFormat)
+		writeFileBytes(sectionJsonTotalF, finalOutJsonFormatBytes)
 	}
 
 	// parseTextMindTable(textMindJson)
@@ -271,6 +191,7 @@ func getOutFilePathFunc(dir, fileName string) string {
 func ppstructure() {
 	if pp_text_2_json {
 		if len(dir) > 0 {
+			var filePaths []string
 			outDir := fmt.Sprintf("%v/recover", dir)
 			os.Mkdir(outDir, os.ModePerm)
 			f3, _ := os.Create(fmt.Sprintf("%v/total_recover.txt", outDir))
@@ -281,12 +202,11 @@ func ppstructure() {
 				}
 				if info.IsDir() {
 					fmt.Printf("%s is a directory\n", info.Name())
-				} else if strings.HasSuffix(path, ".txt") {
+				} else if strings.HasSuffix(path, ".txt") && !strings.Contains(path, "recover") {
 					if strings.HasSuffix(path, outDir) {
 						return nil
 					}
-					fmt.Printf(" ###### Processing File: %s\n", path)
-					pp_text2Json(f3, path)
+					filePaths = append(filePaths, path)
 				}
 				return nil
 			}
@@ -294,11 +214,30 @@ func ppstructure() {
 			if err != nil {
 				fmt.Printf("Error walk:%v", err)
 			}
+			// 按文件页数排序处理
+			sort.Slice(filePaths, func(i, j int) bool {
+				return getInputFilePageIndex(filePaths[i]) < getInputFilePageIndex(filePaths[j])
+			})
+			for _, path := range filePaths {
+				fmt.Printf(" ###### Processing File: %s\n", path)
+				pp_text2Json(f3, path)
+			}
 		} else {
+			if len(filePath) == 0 {
+				return
+			}
 			f3, _ := os.Create(fmt.Sprintf("%v.recover.txt", filePath))
 			pp_text2Json(f3, filePath)
 		}
 	}
+}
+
+func getInputFilePageIndex(filePath string) int {
+	lastIndexOfDot := strings.LastIndex(filePath, ".")
+	lastIndexOfDash := strings.LastIndex(filePath, "_")
+	pageIndx := filePath[lastIndexOfDash+1 : lastIndexOfDot]
+	index, _ := strconv.Atoi(pageIndx)
+	return index
 }
 
 func dp_d2p() {
