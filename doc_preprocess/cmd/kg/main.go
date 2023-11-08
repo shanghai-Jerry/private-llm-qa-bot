@@ -44,6 +44,10 @@ func main() {
 
 	office_json_handler()
 
+	if textMindJson != "" {
+		parseTextMindTable(textMindJson)
+	}
+
 	fmt.Printf("total costs:%v(s) \n", time.Since(start).Seconds())
 	fmt.Println("++++++++++++++++++++++++++++++++++++++++++++++++")
 }
@@ -59,6 +63,8 @@ func office_json_handler() {
 		// 23
 		inputFileName := strings.ReplaceAll(inputFile[:index], " ", "_")
 		outputDir := "../../office/" + inputFileName
+		imagesDir := outputDir + "/images"
+		os.Mkdir(imagesDir, fs.ModePerm)
 		f4, _ := os.Create(getOutFilePathFunc(outputDir, fmt.Sprintf("%v-out-section.txt", inputFileName)))
 		f5, _ := os.Create(getOutFilePathFunc(outputDir, fmt.Sprintf("%v-out-section.json", inputFileName)))
 		finalOutJsonFormat := &OutputJsonFormat{}
@@ -67,6 +73,20 @@ func office_json_handler() {
 		writeFileBytes(f5, finalOutJsonFormatBytes)
 
 		fmt.Printf("finished file:%v", inputFileName)
+		pdf2Image(pdfPath)
+		// put JPEGs in tmp folder under random prefix
+		// jpegPrefix := generateRandomString(50)
+		// jpegPath := fmt.Sprintf("%v/%s%%d.jpg", imagesDir, jpegPrefix)
+		// smallJPEGPath := fmt.Sprintf("%v/%s%%d-small.jpg", imagesDir, jpegPrefix)
+		// largeJPEGPath := fmt.Sprintf("%v/%s%%d-large.jpg", imagesDir, jpegPrefix)
+
+		// numPages, err := convertPDFToJPEGs(pdfPath, jpegPath, smallJPEGPath,
+		// 	largeJPEGPath)
+		// if err != nil {
+		// 	fmt.Println("convertPDFToJPEGs failed,", err)
+		// 	panic("convertPDFToJPEGs failed")
+		// }
+		// fmt.Printf("finished file pdf2image:%v, numPages:%v", inputFileName, numPages)
 
 	}
 	// 1 ################################################################
@@ -180,8 +200,6 @@ func office_json_handler() {
 		finalOutJsonFormatBytes, _ := json.Marshal(finalOutJsonFormat)
 		writeFileBytes(sectionJsonTotalF, finalOutJsonFormatBytes)
 	}
-
-	// parseTextMindTable(textMindJson)
 }
 
 func getOutFilePathFunc(dir, fileName string) string {

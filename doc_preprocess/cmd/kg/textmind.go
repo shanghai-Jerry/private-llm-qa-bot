@@ -205,6 +205,32 @@ func buildTextMindTable(data []TableRet) [][]string {
 	return table
 }
 
+func buildTextMindTableWithMatrix(data TextMindLayout) [][]string {
+
+	matrix := data.Matrix
+	childrens := data.Children
+	rows := len(matrix)
+	cols := len(matrix[0])
+	// 构建表格
+	table := make([][]string, rows)
+	for i := range table {
+		table[i] = make([]string, cols)
+	}
+	for i, rows := range matrix {
+		cm := make(map[int]struct{})
+		for j, c := range rows {
+			if _, ok := cm[c]; !ok {
+				// table[i][j] = childrens[c].Text
+				cm[c] = struct{}{}
+			} else {
+				// table[i][j] = "-"
+			}
+			table[i][j] = childrens[c].Text
+		}
+	}
+	return table
+}
+
 func parseTextMindTable(fileName string) {
 	if len(fileName) == 0 {
 		return
@@ -227,9 +253,10 @@ func parseTextMindTable(fileName string) {
 				pageNo := position.PageNo
 				fileContent := resultList.FileContentItems[pageNo]
 				pageContent := fileContent.PageContent
-				ocrContent := fileContent.OCRContent
+				// ocrContent := fileContent.OCRContent
 				tableIndex := pageTableIndex[pageNo]
-				newTables := buildTextMindTable(ocrContent.TablesRet[tableIndex].TableRet)
+				// newTables := buildTextMindTable(ocrContent.TablesRet[tableIndex].TableRet)
+				newTables := buildTextMindTableWithMatrix(pageContent.Layout[layOutIndex])
 				pageTableIndex[pageNo]++
 				f, _ := os.Create(fmt.Sprintf("%v-n%v-p%v-table-ret-i%v", fileName, nodeIndex, pageNo, tableIndex))
 				writeTable(f, newTables)
@@ -242,7 +269,8 @@ func parseTextMindTable(fileName string) {
 						table[i] = append(table[i], childrens[col].Text)
 					}
 				}
-				// writeTable(fmt.Sprintf("%v-n%v-p%v-layout-i%v", fileName, nodeIndex, pageNo, index), table)
+				// f1, _ := os.Create(fmt.Sprintf("%v-n%v-p%v-layout-i%v", fileName, nodeIndex, pageNo, index))
+				// writeTable(f1, table)
 			}
 		}
 	}

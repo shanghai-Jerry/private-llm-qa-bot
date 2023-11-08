@@ -87,11 +87,8 @@ func (p *OfficePageParserBySection) officeDataParseLayoutJsonFromatBySection() {
 	docTitles := p.DocTitles
 	for _, o := range outPutJsons {
 		o.Tokens = CountTokens(o.Content)
-		endWith := endsWithPunctuation(o.Content)
+		// endWith := endsWithPunctuation(o.Content)
 		outContent := o.Content
-		if endWith {
-			outContent = o.Content + "\n"
-		}
 		// write txt
 		if f != nil {
 			writeFileBytes(f, []byte(outContent))

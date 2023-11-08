@@ -688,6 +688,9 @@ func officePDFParserV2(totalTxtF *os.File, finalOutJsonFormat *OutputJsonFormat,
 		fmt.Printf("parsePDF err:%v", err.Error())
 		return
 	}
+	// tableJsonBytes, _ := parseTable(pdfFile, pdfPath, 1)
+	// tableF, _ := os.Create(getOutFilePathFunc(outputDir, fmt.Sprintf("/%v.table-p-%v", inputFileName, 1)))
+	// writeFileBytes(tableF, tableJsonBytes)
 	// 输出第一页解析josn
 	writeFileBytes(firstOutJsonF, firstPageRetJson)
 
@@ -722,6 +725,9 @@ func officePDFParserV2(totalTxtF *os.File, finalOutJsonFormat *OutputJsonFormat,
 		}
 		outJsonFPage, _ := os.Create(outputDir + "/" + fmt.Sprintf("%v-page-%v.json", inputFileName, page))
 		f6, _ = os.Create(getOutFilePathFunc(outputDir, fmt.Sprintf("%v-out-page-%v-section.txt", inputFileName, page)))
+		// tableJsonBytes, _ := parseTable(pdfFile, pdfPath, page)
+		// tableF, _ := os.Create(getOutFilePathFunc(outputDir, fmt.Sprintf("/%v-table-p-%v", inputFileName, page)))
+		// writeFileBytes(tableF, tableJsonBytes)
 		// 输出每一页解析josn
 		writeFileBytes(outJsonFPage, retJson)
 

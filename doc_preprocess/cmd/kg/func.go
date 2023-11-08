@@ -13,15 +13,6 @@ type DPContent struct {
 	Content string `json:"content"`
 }
 
-func endsWithPunctuation(str string) bool {
-	// 定义正则表达式模式，匹配标点符号结尾
-	pattern := `[[:punct:]]$`
-	// 编译正则表达式
-	re := regexp.MustCompile(pattern)
-	// 使用正则表达式匹配
-	return re.MatchString(str)
-}
-
 func printDPContent() {
 	var Content DPContent
 	dataBytes, _ := os.ReadFile("./baizhong/dp.json")
@@ -62,4 +53,13 @@ func CountTokens(content string) int {
 	englishStrNum := len(strings.Join(englishList, ""))
 	tokenNum := totalNum - englishStrNum + len(englishList)
 	return tokenNum
+}
+
+func endsWithPunctuation(str string) bool {
+	// 定义正则表达式模式，匹配标点符号结尾
+	pattern := `[[:punct:]]$`
+	// 编译正则表达式
+	re := regexp.MustCompile(pattern)
+	// 使用正则表达式匹配
+	return re.MatchString(str)
 }
