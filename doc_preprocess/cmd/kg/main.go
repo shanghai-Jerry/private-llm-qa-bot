@@ -73,7 +73,7 @@ func office_json_handler() {
 		writeFileBytes(f5, finalOutJsonFormatBytes)
 
 		fmt.Printf("finished file:%v", inputFileName)
-		pdf2Image(pdfPath)
+		// pdf2Image(pdfPath)
 		// put JPEGs in tmp folder under random prefix
 		// jpegPrefix := generateRandomString(50)
 		// jpegPath := fmt.Sprintf("%v/%s%%d.jpg", imagesDir, jpegPrefix)
