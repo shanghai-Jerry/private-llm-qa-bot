@@ -73,21 +73,6 @@ func office_json_handler() {
 		writeFileBytes(f5, finalOutJsonFormatBytes)
 
 		fmt.Printf("finished file:%v", inputFileName)
-		// pdf2Image(pdfPath)
-		// put JPEGs in tmp folder under random prefix
-		// jpegPrefix := generateRandomString(50)
-		// jpegPath := fmt.Sprintf("%v/%s%%d.jpg", imagesDir, jpegPrefix)
-		// smallJPEGPath := fmt.Sprintf("%v/%s%%d-small.jpg", imagesDir, jpegPrefix)
-		// largeJPEGPath := fmt.Sprintf("%v/%s%%d-large.jpg", imagesDir, jpegPrefix)
-
-		// numPages, err := convertPDFToJPEGs(pdfPath, jpegPath, smallJPEGPath,
-		// 	largeJPEGPath)
-		// if err != nil {
-		// 	fmt.Println("convertPDFToJPEGs failed,", err)
-		// 	panic("convertPDFToJPEGs failed")
-		// }
-		// fmt.Printf("finished file pdf2image:%v, numPages:%v", inputFileName, numPages)
-
 	}
 	// 1 ################################################################
 	// load_data()

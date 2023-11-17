@@ -186,7 +186,7 @@ func (p *OfficePageParserBySection) get_output_json_by_section_section(section S
 				outputJson := &OutputJson{
 					Type:    layout_figure,
 					Pages:   pageNo,
-					Content: fmt.Sprintf("[image: %v] == start ", imageIdStr),
+					Content: fmt.Sprintf("\n[image: %v] == start\n", imageIdStr),
 				}
 				outPutJsons = addOutputJson(outPutJsons, outputJson)
 				// 识别出来的图片内容，拿出来看看
@@ -226,7 +226,7 @@ func (p *OfficePageParserBySection) get_output_json_by_section_section(section S
 				outputJson := &OutputJson{
 					Type:    layout_content,
 					Pages:   pageNo,
-					Content: strings.Join(getContentParas(results, start, end), "\n"),
+					Content: "\n" + strings.Join(getContentParas(results, start, end), "\n") + "\n",
 				}
 				outPutJsons = addOutputJson(outPutJsons, outputJson)
 			}
