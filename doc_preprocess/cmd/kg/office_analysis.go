@@ -68,6 +68,7 @@ func parsePDF(pdfFile string, pdfPath string, fileNum int) (body []byte, err err
 	data.Set("pdf_file_num", fmt.Sprintf("%v", fileNum))
 	data.Set("layout_analysis", "true")
 	data.Set("recg_tables", "true")
+	data.Set("recg_formula", "true")
 
 	client := &http.Client{}
 	req, err := http.NewRequest("POST", urlPath, strings.NewReader(data.Encode()))
