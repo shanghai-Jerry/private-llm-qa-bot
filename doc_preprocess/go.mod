@@ -4,6 +4,7 @@ go 1.13
 
 require (
 	github.com/baidubce/bce-sdk-go v0.9.159
+	github.com/bigchange/go-lib v0.0.0-20231204033013-6266ae288fb6
 	github.com/gin-gonic/gin v1.9.1
 	github.com/google/uuid v1.4.0
 	github.com/hashicorp/go-uuid v1.0.3

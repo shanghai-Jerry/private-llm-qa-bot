@@ -46,7 +46,7 @@ func evalBasicLit(lit *ast.BasicLit) (int, error) {
 }
 
 func (data *LogData) AstBasicExpr() {
-	expr, _ := parser.ParseExpr(`request.body.source ==7 || 7==7`)
+	expr, _ := parser.ParseExpr(`request.body.messages[0].id.name == 7 || 7==7`)
 	ast.Print(nil, expr)
 	fmt.Println(data.Eval(data, expr))
 }
@@ -111,7 +111,6 @@ func main() {
 			},
 		},
 	}
-
 	// field := getField(data, "request.body.source")
 
 	data.AstBasicExpr()
